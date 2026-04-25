@@ -2,6 +2,16 @@
 
 所有重要的變更都會記錄在此檔案中。
 
+## [0.4.4] - 2026-04-25
+
+### fix: 修正 .env.example 殘留已廢棄欄位導致後端啟動失敗
+
+**Why**: v0.4.2 移除 Whisper 支援時，`.env.example` 未同步清理 `WHISPER_MODEL`、`WHISPER_DEVICE`、`NEXT_PUBLIC_API_URL`，新建的 `.env` 含有 `config.py` 不認識的欄位，pydantic `extra_forbidden` 驗證拒絕啟動。
+
+**What**:
+- 移除 `.env.example` 中已廢棄的三個欄位
+- 更新欄位註解，標示 API Key 可在前端設定頁面輸入
+
 ## [0.4.3] - 2026-04-25
 
 ### fix: 修復設定頁面 JSX 語法錯誤導致 Build 失敗
