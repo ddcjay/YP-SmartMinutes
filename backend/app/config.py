@@ -19,8 +19,6 @@ class Settings(BaseSettings):
 
     # AI 服務
     gemini_api_key: str = ""
-    whisper_model: str = "medium"      # tiny|base|small|medium|large-v3
-    whisper_device: str = "cpu"        # cpu|cuda
 
     # 檔案儲存
     upload_dir: str = "./uploads"

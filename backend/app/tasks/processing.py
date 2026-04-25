@@ -13,7 +13,7 @@ from app.models.meeting import Meeting
 
 logger = logging.getLogger(__name__)
 
-# NOTE: 使用執行緒池處理 CPU 密集型任務（Whisper 轉錄），避免阻塞 FastAPI 的事件迴圈
+# NOTE: 使用執行緒池處理 IO 密集型或 CPU 密集型任務，避免阻塞 FastAPI 的事件迴圈
 _executor = ThreadPoolExecutor(max_workers=2)
 
 # 記憶體中的任務進度快取（個人單機版足夠使用）
@@ -89,7 +89,7 @@ def _process_meeting_sync(meeting_id: str):
         wav_path = preprocess_audio(meeting.file_path)
         _update_progress(meeting_id, "processing", 20, "音訊預處理完成")
 
-        # ② Faster-Whisper 語音轉錄
+        # ② 語音轉錄（Groq API）
         _update_progress(meeting_id, "transcribing", 30, "轉錄音訊中...")
         from app.services.transcription_service import transcribe_audio
         segments = transcribe_audio(wav_path, meeting_id, db)
@@ -100,6 +100,12 @@ def _process_meeting_sync(meeting_id: str):
             db.commit()
 
         _update_progress(meeting_id, "transcribing", 70, "轉錄完成")
+
+        # NOTE: 若轉錄無結果（靜音或無語音），跳過摘要生成
+        if not segments:
+            logger.warning(f"No transcription segments for meeting {meeting_id}, skipping summary")
+            _update_progress(meeting_id, "completed", 100, "處理完成（未偵測到語音內容）")
+            return
 
         # ③ AI 摘要生成
         _update_progress(meeting_id, "summarizing", 80, "生成摘要中...")

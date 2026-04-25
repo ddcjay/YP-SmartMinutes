@@ -10,7 +10,6 @@ import { apiFetch, API_BASE_URL } from "@/lib/api-client";
 interface SettingsStatus {
   groq_configured: boolean;
   gemini_configured: boolean;
-  transcription_provider: string;
   ready: boolean;
 }
 
@@ -18,7 +17,6 @@ export default function SettingsPage() {
   const router = useRouter();
   const [groqKey, setGroqKey] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
-  const [provider, setProvider] = useState("groq");
   const [status, setStatus] = useState<SettingsStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
@@ -30,7 +28,6 @@ export default function SettingsPage() {
     apiFetch<{ data: SettingsStatus }>("/api/settings/status")
       .then((res) => {
         setStatus(res.data);
-        setProvider(res.data.transcription_provider || "groq");
       })
       .catch(console.error);
   }, []);
@@ -39,9 +36,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveMessage("");
     try {
-      const settings = [
-        { key: "transcription_provider", value: provider },
-      ];
+      const settings: { key: string; value: string }[] = [];
       // 僅在使用者有輸入新值時才更新（避免覆蓋已儲存的 key）
       if (groqKey.trim()) {
         settings.push({ key: "groq_api_key", value: groqKey.trim() });
@@ -69,7 +64,7 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
-  }, [groqKey, geminiKey, provider]);
+  }, [groqKey, geminiKey]);
 
   return (
     <main className="flex-1 flex flex-col min-h-screen">
@@ -109,45 +104,10 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* 轉錄引擎選擇 */}
-          <div className="glass-card p-5">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <Zap size={14} style={{ color: "var(--color-primary-light)" }} />
-              轉錄引擎
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                className="p-4 rounded-xl text-left transition-all"
-                style={{
-                  background: provider === "groq" ? "rgba(99,102,241,0.1)" : "var(--color-bg-elevated)",
-                  border: `1px solid ${provider === "groq" ? "var(--color-primary)" : "var(--color-border)"}`,
-                }}
-                onClick={() => setProvider("groq")}
-              >
-                <p className="font-medium text-sm">☁️ Groq 雲端極速</p>
-                <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>
-                  1 小時音檔 {"<"} 1 分鐘，免費
-                </p>
-              </button>
-              <button
-                className="p-4 rounded-xl text-left transition-all"
-                style={{
-                  background: provider === "local" ? "rgba(99,102,241,0.1)" : "var(--color-bg-elevated)",
-                  border: `1px solid ${provider === "local" ? "var(--color-primary)" : "var(--color-border)"}`,
-                }}
-                onClick={() => setProvider("local")}
-              >
-                <p className="font-medium text-sm">💻 本地離線</p>
-                <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>
-                  資料不出境，需下載模型
-                </p>
-              </button>
-            </div>
-          </div>
+
 
           {/* Groq API Key */}
-          {provider === "groq" && (
-            <div className="glass-card p-5">
+          <div className="glass-card p-5">
               <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
                 <Key size={14} style={{ color: "var(--color-primary-light)" }} />
                 Groq API Key
@@ -181,7 +141,7 @@ export default function SettingsPage() {
                 </button>
               </div>
             </div>
-          )}
+          </div>
 
           {/* Gemini API Key */}
           <div className="glass-card p-5">

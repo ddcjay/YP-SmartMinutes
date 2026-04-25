@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 # 允許使用者設定的 key 白名單（防止任意寫入）
-ALLOWED_KEYS = {"groq_api_key", "gemini_api_key", "transcription_provider", "whisper_model"}
+ALLOWED_KEYS = {"groq_api_key", "gemini_api_key"}
 
 
 class SettingUpdateRequest(BaseModel):
@@ -93,14 +93,12 @@ def check_status(db: Session = Depends(get_db)):
     """
     groq_key = get_setting("groq_api_key", db)
     gemini_key = get_setting("gemini_api_key", db)
-    provider = get_setting("transcription_provider", db, "groq")
 
     return {
         "code": 200,
         "data": {
             "groq_configured": bool(groq_key),
             "gemini_configured": bool(gemini_key),
-            "transcription_provider": provider,
-            "ready": bool(groq_key or provider == "local") and bool(gemini_key),
+            "ready": bool(groq_key) and bool(gemini_key),
         },
     }

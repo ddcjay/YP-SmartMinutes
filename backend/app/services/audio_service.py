@@ -27,17 +27,23 @@ def preprocess_audio(input_path: str) -> str:
     input_file = Path(input_path)
     output_file = input_file.with_suffix(".wav")
 
-    # NOTE: 如果已經是 WAV 格式且符合規格，可考慮跳過轉換（未來優化）
+    # NOTE: 當輸入已是 .wav，FFmpeg 無法原地覆寫 (in-place)，
+    # 因此先輸出到暫存路徑再替換
+    if input_file == output_file:
+        tmp_output = input_file.with_name(f"{input_file.stem}_processed.wav")
+    else:
+        tmp_output = output_file
+
     cmd = [
         "ffmpeg", "-y",           # 覆蓋已存在的輸出檔
         "-i", str(input_file),    # 輸入檔案
         "-ar", "16000",           # 取樣率 16kHz（Whisper 要求）
         "-ac", "1",               # 單聲道
         "-c:a", "pcm_s16le",      # 16-bit PCM 編碼
-        str(output_file),
+        str(tmp_output),
     ]
 
-    logger.info(f"FFmpeg converting: {input_file.name} → {output_file.name}")
+    logger.info(f"FFmpeg converting: {input_file.name} → {tmp_output.name}")
 
     try:
         result = subprocess.run(
@@ -52,6 +58,10 @@ def preprocess_audio(input_path: str) -> str:
         raise RuntimeError(
             "FFmpeg not found. Please install FFmpeg and ensure it is in your system PATH."
         )
+
+    # 若使用暫存路徑，將結果搬移回預期的輸出路徑
+    if tmp_output != output_file:
+        tmp_output.replace(output_file)
 
     logger.info(f"Audio preprocessed successfully: {output_file}")
     return str(output_file)

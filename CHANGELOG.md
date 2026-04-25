@@ -2,6 +2,35 @@
 
 所有重要的變更都會記錄在此檔案中。
 
+## [0.4.2] - 2026-04-25
+
+### refactor: 移除本地 Whisper 轉錄支援
+
+**Why**: 全面轉向 Groq API 雲端極速轉錄方案，簡化系統架構與相依性，並提升整體處理速度。
+
+**What**:
+- 移除 `transcription_service.py` 中的 Faster-Whisper 實作與切換邏輯
+- 移除前端 `/settings` 頁面中的轉錄引擎選擇介面與相關變數
+- 移除 `requirements.txt` 中的 `faster-whisper` 套件
+- 移除設定相關 API ( `config.py`, `endpoints/settings.py` ) 中對本地模型 ( `whisper_model`, `transcription_provider` ) 的依賴
+
+## [0.4.1] - 2026-04-25
+
+### fix: 修復音檔上傳處理失敗的三項問題
+
+**Why**: 上傳音檔後處理流程在多個環節出錯，導致始終回報「處理失敗」。
+
+**What**:
+- 修正 `audio_service.py`：FFmpeg 輸入輸出路徑相同時無法原地覆寫（`.wav` 上傳場景），
+  改為先輸出至暫存路徑再替換
+- 重構 `transcription_service.py`：
+  - 抽出 `_parse_groq_result` / `_get_segment_field` 共用函式，消除 segment 解析的重複邏輯
+  - 統一使用 `getattr` + `dict.get` 雙重取值，強化 Groq SDK 回傳型別相容性
+  - Groq 模型改為 `whisper-large-v3-turbo`（更快、更便宜）
+  - 加入 debug 日誌以利排查轉錄結果
+- 修正 `processing.py`：轉錄結果為空（靜音/無語音）時，優雅跳過摘要生成並標記完成，
+  不再因 `No transcript found` 而拋出異常
+
 ## [0.4.0] - 2026-04-25
 
 ### feat: 整合 Groq API 雲端極速轉錄 + 使用者自助 API Key 管理
