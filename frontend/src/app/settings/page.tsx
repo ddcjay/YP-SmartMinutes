@@ -108,38 +108,37 @@ export default function SettingsPage() {
 
           {/* Groq API Key */}
           <div className="glass-card p-5">
-              <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                <Key size={14} style={{ color: "var(--color-primary-light)" }} />
-                Groq API Key
-              </h2>
-              <p className="text-xs mb-3" style={{ color: "var(--color-text-muted)" }}>
-                前往{" "}
-                <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
-                  className="underline hover:opacity-80" style={{ color: "var(--color-primary-light)" }}>
-                  console.groq.com
-                </a>
-                {" "}免費申請（不需信用卡）
-              </p>
-              <div className="relative">
-                <input
-                  type={showGroqKey ? "text" : "password"}
-                  value={groqKey}
-                  onChange={(e) => setGroqKey(e.target.value)}
-                  placeholder={status?.groq_configured ? "已設定（留空不修改）" : "gsk_..."}
-                  className="w-full px-4 py-3 rounded-xl text-sm outline-none transition"
-                  style={{
-                    background: "var(--color-bg-base)",
-                    border: "1px solid var(--color-border)",
-                    color: "var(--color-text-primary)",
-                  }}
-                />
-                <button
-                  className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition"
-                  onClick={() => setShowGroqKey(!showGroqKey)}
-                >
-                  {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
+            <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
+              <Key size={14} style={{ color: "var(--color-primary-light)" }} />
+              Groq API Key
+            </h2>
+            <p className="text-xs mb-3" style={{ color: "var(--color-text-muted)" }}>
+              前往{" "}
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
+                className="underline hover:opacity-80" style={{ color: "var(--color-primary-light)" }}>
+                console.groq.com
+              </a>
+              {" "}免費申請（不需信用卡）
+            </p>
+            <div className="relative">
+              <input
+                type={showGroqKey ? "text" : "password"}
+                value={groqKey}
+                onChange={(e) => setGroqKey(e.target.value)}
+                placeholder={status?.groq_configured ? "已設定（留空不修改）" : "gsk_..."}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition"
+                style={{
+                  background: "var(--color-bg-base)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                }}
+              />
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition"
+                onClick={() => setShowGroqKey(!showGroqKey)}
+              >
+                {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
           </div>
 

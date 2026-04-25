@@ -2,6 +2,16 @@
 
 所有重要的變更都會記錄在此檔案中。
 
+## [0.4.3] - 2026-04-25
+
+### fix: 修復設定頁面 JSX 語法錯誤導致 Build 失敗
+
+**Why**: Groq API Key 區塊多了一層 `</div>`，造成 JSX 巢狀結構不對稱，Turbopack 在解析 `</main>` 時拋出 "Expression expected" 錯誤。
+
+**What**:
+- 移除 `settings/page.tsx` 中 Groq API Key 區塊多餘的 `</div>` 閉合標籤
+- 統一該區塊的縮排層級，與 Gemini API Key 區塊保持一致
+
 ## [0.4.2] - 2026-04-25
 
 ### refactor: 移除本地 Whisper 轉錄支援
