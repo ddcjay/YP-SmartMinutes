@@ -3,7 +3,12 @@
 對應資料庫中的 meetings、transcripts、summaries 三張表。
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _utcnow():
+    """回傳 UTC 時間（避免 Python 3.12+ 的 deprecation warning）。"""
+    return datetime.now(timezone.utc)
 
 from sqlalchemy import Column, String, Text, Integer, Float, DateTime, Enum, ForeignKey, JSON
 from sqlalchemy.orm import relationship
@@ -29,8 +34,8 @@ class Meeting(Base):
     progress = Column(Integer, default=0)                # 處理進度百分比 (0-100)
     progress_message = Column(String(200), default="")   # 目前進度描述文字
     template_type = Column(String(50), default="general_meeting")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     # 關聯
     transcripts = relationship("Transcript", back_populates="meeting", cascade="all, delete-orphan")
@@ -49,7 +54,7 @@ class Transcript(Base):
     end_time = Column(Float, nullable=False)             # 結束時間 (秒)
     content = Column(Text, nullable=False)               # 轉錄文字內容
     is_edited = Column(Integer, default=0)               # 是否經使用者手動修改
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     meeting = relationship("Meeting", back_populates="transcripts")
 
@@ -63,6 +68,6 @@ class Summary(Base):
     meeting_id = Column(String(36), ForeignKey("meetings.id"), nullable=False)
     template_type = Column(String(50), nullable=False)   # general_meeting | interview | brainstorming
     content = Column(JSON, nullable=False)               # 結構化摘要 JSON
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     meeting = relationship("Meeting", back_populates="summaries")
