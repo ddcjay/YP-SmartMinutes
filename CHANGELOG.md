@@ -2,6 +2,23 @@
 
 所有重要的變更都會記錄在此檔案中。
 
+## [0.1.1] - 2026-04-25
+
+### docs: 全面更新文件至方案 B 精簡架構
+
+**Why**: Phase 0 完成後，原有文件仍殘留方案 A（Celery/Redis/PostgreSQL）的內容，
+需統一更新以確保文件與實作一致。
+
+**What**:
+- 重寫 `02.technical-architecture.md`：架構圖改為單一服務、SQLite、SSE
+- 重寫 `03.project-structure.md`：移除 Celery/Redis 目錄、新增精簡對比表
+- 重寫 `04.implementation-plan.md`：Phase 0 標記完成、精簡為 4 階段 4-5 週
+- 刪除 `05.environment-config.md`（內容已整合至 `.env.example`）
+- 刪除 `06.free-solutions-evaluation`（方案已決定，不再需要）
+- 刪除 `backend/alembic/` 與 `alembic.ini`（MVP 使用 auto-create）
+- 刪除 `docker-compose.yml`（MVP 不需 Docker）
+- 移除 `requirements.txt` 中的 alembic、celery、redis、psycopg2-binary
+
 ## [0.1.0] - 2026-04-25
 
 ### feat: 專案初始化與方案 B 精簡架構建立
@@ -24,4 +41,4 @@
 - 實作背景任務處理（ThreadPoolExecutor 取代 Celery）
 - 實作全域錯誤處理中介層
 - 建立 .gitignore、.env.example
-- 建立開發文件（PRD/架構/目錄結構/實施計畫/環境設定）
+- 建立開發文件（PRD/架構/目錄結構/實施計畫）
