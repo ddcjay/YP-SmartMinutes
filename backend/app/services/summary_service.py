@@ -131,7 +131,7 @@ def generate_summary(meeting_id: str, template_type: str, db: Session) -> Summar
 
     import google.generativeai as genai
     genai.configure(api_key=gemini_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
 
     response = model.generate_content(prompt)
     response_text = response.text

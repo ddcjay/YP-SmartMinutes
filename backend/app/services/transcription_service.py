@@ -13,6 +13,10 @@ from app.models.meeting import Transcript
 
 logger = logging.getLogger(__name__)
 
+# NOTE: Groq API 單次上傳限制為 25MB，使用 18MB 作為安全切割閾值以預留 WAV header 空間
+GROQ_MAX_CHUNK_BYTES = 18 * 1024 * 1024
+GROQ_WHISPER_MODEL = "whisper-large-v3-turbo"
+
 
 def _get_segment_field(seg, field: str, default=None):
     """
@@ -107,6 +111,7 @@ def _transcribe_with_groq(wav_path: str, meeting_id: str, db: Session, api_key: 
                 model=GROQ_WHISPER_MODEL,
                 language="zh",
                 response_format="verbose_json",
+                prompt="以下是一段繁體中文台灣口音的會議錄音，請以繁體中文輸出。",
             )
 
         logger.debug(f"Groq result type: {type(result)}, has segments: {hasattr(result, 'segments')}, has text: {hasattr(result, 'text')}")
@@ -157,6 +162,7 @@ def _transcribe_with_groq(wav_path: str, meeting_id: str, db: Session, api_key: 
                             model=GROQ_WHISPER_MODEL,
                             language="zh",
                             response_format="verbose_json",
+                            prompt="以下是一段繁體中文台灣口音的會議錄音，請以繁體中文輸出。",
                         )
 
                     chunk_records = _parse_groq_result(result, meeting_id, db, time_offset)

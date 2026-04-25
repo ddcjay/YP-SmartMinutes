@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, FileAudio, Sparkles, FileText, Subtitles, Loader2, Settings } from "lucide-react";
 import Link from "next/link";
-import { API_BASE_URL } from "@/lib/api-client";
+import { API_BASE_URL, apiFetch } from "@/lib/api-client";
 
 /** 允許上傳的檔案格式 */
 const ACCEPTED_TYPES = [".mp3", ".wav", ".m4a", ".mp4", ".webm", ".ogg"];
@@ -17,6 +17,13 @@ export default function HomePage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState("");
+  const [recentMeetings, setRecentMeetings] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiFetch<{ data: any[] }>("/api/meetings?limit=5")
+      .then(res => setRecentMeetings(res.data))
+      .catch(console.error);
+  }, []);
 
   const handleFile = useCallback((file: File) => {
     setError("");
@@ -31,6 +38,18 @@ export default function HomePage() {
     }
     setSelectedFile(file);
   }, []);
+
+  const triggerFileInput = useCallback(() => {
+    if (isUploading) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ACCEPTED_MIME.join(",");
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) handleFile(file);
+    };
+    input.click();
+  }, [isUploading, handleFile]);
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile) return;
@@ -118,18 +137,7 @@ export default function HomePage() {
             const file = e.dataTransfer.files[0];
             if (file) handleFile(file);
           }}
-          onClick={() => {
-            if (!isUploading) {
-              const input = document.createElement("input");
-              input.type = "file";
-              input.accept = ACCEPTED_MIME.join(",");
-              input.onchange = (e) => {
-                const file = (e.target as HTMLInputElement).files?.[0];
-                if (file) handleFile(file);
-              };
-              input.click();
-            }
-          }}
+          onClick={triggerFileInput}
         >
           {isUploading ? (
             <div className="space-y-4">
@@ -184,13 +192,48 @@ export default function HomePage() {
           { icon: FileText, title: "智慧摘要", desc: "AI 自動整理會議要點、待辦事項與建議行動" },
           { icon: Subtitles, title: "多格式輸出", desc: "匯出 SRT 字幕、逐字稿、Markdown 等格式" },
         ].map((feature) => (
-          <div key={feature.title} className="glass-card p-5 text-center">
+          <button 
+            key={feature.title} 
+            className="glass-card p-5 text-center hover:-translate-y-1 hover:shadow-lg transition-all duration-300 w-full"
+            onClick={triggerFileInput}
+            title="點擊上傳音檔開始體驗"
+          >
             <feature.icon size={28} className="mx-auto mb-3" style={{ color: "var(--color-primary-light)" }} />
             <h3 className="font-semibold mb-1">{feature.title}</h3>
             <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>{feature.desc}</p>
-          </div>
+          </button>
         ))}
       </div>
+
+      {/* 近期會議紀錄 */}
+      {recentMeetings.length > 0 && (
+        <div className="w-full max-w-3xl mt-12 relative z-10 animate-fade-up" style={{ animationDelay: "0.3s" }}>
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+            <FileAudio size={18} style={{ color: "var(--color-primary-light)" }} />
+            近期會議紀錄
+          </h2>
+          <div className="glass-card overflow-hidden">
+            {recentMeetings.map((m, idx) => (
+              <Link 
+                key={m.id} 
+                href={`/meeting/${m.id}`} 
+                className="flex items-center justify-between p-4 hover:bg-[var(--color-bg-hover)] transition"
+                style={{ borderBottom: idx !== recentMeetings.length - 1 ? "1px solid var(--color-border)" : "none" }}
+              >
+                <div>
+                  <h3 className="font-medium text-sm md:text-base">{m.title}</h3>
+                  <p className="text-xs mt-1" style={{ color: "var(--color-text-secondary)" }}>
+                    {new Date(m.created_at).toLocaleString()} · {m.status === "completed" ? "✅ 已完成" : m.status === "failed" ? "❌ 失敗" : "⏳ 處理中"}
+                  </p>
+                </div>
+                <span className="text-xs md:text-sm font-medium px-3 py-1.5 rounded-full whitespace-nowrap ml-4" style={{ background: "rgba(99,102,241,0.1)", color: "var(--color-primary-light)" }}>
+                  查看紀錄 →
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

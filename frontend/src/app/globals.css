@@ -150,3 +150,45 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-light);
 }
+
+/* ===== 音檔播放器滑桿 ===== */
+.audio-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  outline: none;
+  cursor: pointer;
+  transition: height 0.15s ease;
+}
+
+.audio-slider:hover {
+  height: 6px;
+}
+
+.audio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.audio-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.audio-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
+}

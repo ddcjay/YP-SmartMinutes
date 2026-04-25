@@ -7,9 +7,10 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
-from fastapi.responses import StreamingResponse, Response
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form, Request
+from fastapi.responses import StreamingResponse, Response, FileResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -85,6 +86,14 @@ async def upload_meeting(
     )
 
 
+@router.get("", response_model=ApiResponse)
+def list_meetings(limit: int = 10, db: Session = Depends(get_db)):
+    """取得最近的會議記錄列表"""
+    meetings = db.query(Meeting).order_by(Meeting.created_at.desc()).limit(limit).all()
+    data = [MeetingResponse.model_validate(m).model_dump(mode="json") for m in meetings]
+    return ApiResponse(data=data)
+
+
 @router.get("/{meeting_id}", response_model=ApiResponse)
 def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
     """取得會議詳情（含逐字稿與摘要）。"""
@@ -115,6 +124,96 @@ async def stream_progress(meeting_id: str):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/{meeting_id}/audio")
+def stream_audio(meeting_id: str, request: Request, db: Session = Depends(get_db)):
+    """
+    串流會議原始音檔，支援 HTTP Range 請求（讓前端 <audio> 元素可隨意跳轉播放位置）。
+    優先回傳轉檔後的 WAV，若不存在則回傳原始上傳檔。
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(404, "會議不存在")
+
+    file_path = Path(meeting.file_path)
+
+    # 優先使用轉檔後的 WAV（音質一致且支援更好的跳轉）
+    wav_path = file_path.with_suffix(".wav")
+    if wav_path.exists():
+        audio_path = wav_path
+        content_type = "audio/wav"
+    elif file_path.exists():
+        audio_path = file_path
+        ext = file_path.suffix.lower()
+        content_type = {
+            ".mp3": "audio/mpeg", ".wav": "audio/wav",
+            ".m4a": "audio/mp4", ".mp4": "audio/mp4",
+            ".webm": "audio/webm", ".ogg": "audio/ogg",
+        }.get(ext, "application/octet-stream")
+    else:
+        raise HTTPException(404, "音檔不存在")
+
+    file_size = audio_path.stat().st_size
+    range_header = request.headers.get("range")
+
+    if range_header:
+        # NOTE: 解析 Range header 實現分段傳輸，讓瀏覽器可以跳轉播放
+        range_str = range_header.replace("bytes=", "")
+        start_str, end_str = range_str.split("-")
+        start = int(start_str)
+        end = int(end_str) if end_str else file_size - 1
+        length = end - start + 1
+
+        def iter_file():
+            with open(audio_path, "rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(8192, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        return StreamingResponse(
+            iter_file(),
+            status_code=206,
+            media_type=content_type,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(length),
+            },
+        )
+
+    return FileResponse(str(audio_path), media_type=content_type)
+
+
+@router.put("/{meeting_id}/transcripts/{transcript_id}", response_model=ApiResponse)
+def update_transcript(
+    meeting_id: str,
+    transcript_id: int,
+    req: TranscriptUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    更新單一逐字稿段落的內容（使用者手動修訂）。
+    同時標記該段落已被編輯。
+    """
+    transcript = (
+        db.query(Transcript)
+        .filter(Transcript.id == transcript_id, Transcript.meeting_id == meeting_id)
+        .first()
+    )
+    if not transcript:
+        raise HTTPException(404, "逐字稿段落不存在")
+
+    transcript.content = req.content
+    transcript.is_edited = 1
+    db.commit()
+
+    return ApiResponse(message="逐字稿已更新")
 
 
 @router.post("/{meeting_id}/summary/regenerate", response_model=ApiResponse)
@@ -171,8 +270,9 @@ def export_file(meeting_id: str, fmt: str, db: Session = Depends(get_db)):
     else:
         raise HTTPException(400, f"不支援的匯出格式: {fmt}")
 
+    encoded_filename = quote(filename)
     return Response(
         content=content.encode("utf-8"),
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
     )

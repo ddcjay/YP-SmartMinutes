@@ -22,7 +22,7 @@ _task_progress: dict[str, dict] = {}
 
 def get_progress(meeting_id: str) -> dict:
     """
-    取得指定會議的處理進度。
+    取得指定會議的處理進度。先查記憶體快取，若無則查資料庫（支援重新整理或伺服器重啟後恢復狀態）。
 
     Args:
         meeting_id: 會議 UUID
@@ -30,11 +30,26 @@ def get_progress(meeting_id: str) -> dict:
     Returns:
         包含 status, progress, message 的字典
     """
-    return _task_progress.get(meeting_id, {
+    if meeting_id in _task_progress:
+        return _task_progress[meeting_id]
+
+    db = SessionLocal()
+    try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if meeting:
+            return {
+                "status": meeting.status,
+                "progress": meeting.progress,
+                "message": meeting.progress_message,
+            }
+    finally:
+        db.close()
+
+    return {
         "status": "unknown",
         "progress": 0,
         "message": "找不到任務",
-    })
+    }
 
 
 def _update_progress(meeting_id: str, status: str, progress: int, message: str):

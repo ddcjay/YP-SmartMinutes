@@ -2,6 +2,15 @@
 
 所有重要的變更都會記錄在此檔案中。
 
+## [0.4.5] - 2026-04-25
+
+### fix: 補上 transcription_service.py 遺失的常數定義
+
+**Why**: v0.4.2 重構移除 Whisper 時，`GROQ_MAX_CHUNK_BYTES` 與 `GROQ_WHISPER_MODEL` 常數定義被一併刪除，導致上傳音檔時拋出 `NameError`。
+
+**What**:
+- 在 `transcription_service.py` 加入 `GROQ_MAX_CHUNK_BYTES = 18MB` 與 `GROQ_WHISPER_MODEL = "whisper-large-v3-turbo"` 常數定義
+
 ## [0.4.4] - 2026-04-25
 
 ### fix: 修正 .env.example 殘留已廢棄欄位導致後端啟動失敗
