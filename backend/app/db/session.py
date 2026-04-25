@@ -38,4 +38,5 @@ def init_db():
     """建立所有資料表（開發用，生產環境應使用 Alembic 遷移）。"""
     # NOTE: 必須先匯入所有 Model，Base.metadata 才會包含對應的 Table
     import app.models.meeting  # noqa: F401
+    import app.models.user_setting  # noqa: F401
     Base.metadata.create_all(bind=engine)

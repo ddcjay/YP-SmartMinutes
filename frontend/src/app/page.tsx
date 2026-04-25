@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileAudio, Sparkles, FileText, Subtitles, Loader2 } from "lucide-react";
+import { Upload, FileAudio, Sparkles, FileText, Subtitles, Loader2, Settings } from "lucide-react";
+import Link from "next/link";
 import { API_BASE_URL } from "@/lib/api-client";
 
 /** 允許上傳的檔案格式 */
@@ -76,6 +77,15 @@ export default function HomePage() {
     <main className="flex-1 flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
       {/* 背景光暈效果 */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: "var(--gradient-glow)" }} />
+
+      {/* 右上角設定按鈕 */}
+      <Link
+        href="/settings"
+        className="absolute top-5 right-5 z-20 p-2.5 rounded-xl hover:bg-[var(--color-bg-hover)] transition"
+        title="設定 API Key"
+      >
+        <Settings size={20} style={{ color: "var(--color-text-muted)" }} />
+      </Link>
 
       {/* 標題區 */}
       <div className="text-center mb-10 animate-fade-up relative z-10">
@@ -170,7 +180,7 @@ export default function HomePage() {
       {/* 功能特色卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl mt-14 relative z-10 animate-fade-up" style={{ animationDelay: "0.2s" }}>
         {[
-          { icon: FileAudio, title: "精準轉錄", desc: "Faster-Whisper 本地辨識，支援繁中與中英夾雜" },
+          { icon: FileAudio, title: "極速轉錄", desc: "Groq 雲端極速辨識 / 本地離線模式可選" },
           { icon: FileText, title: "智慧摘要", desc: "AI 自動整理會議要點、待辦事項與建議行動" },
           { icon: Subtitles, title: "多格式輸出", desc: "匯出 SRT 字幕、逐字稿、Markdown 等格式" },
         ].map((feature) => (

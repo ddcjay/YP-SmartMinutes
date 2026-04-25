@@ -120,8 +120,17 @@ def generate_summary(meeting_id: str, template_type: str, db: Session) -> Summar
 
     logger.info(f"Generating summary for meeting {meeting_id} with template: {template_type}")
 
+    # 從使用者設定讀取 Gemini API Key
+    from app.api.endpoints.settings import get_setting
+    gemini_key = get_setting("gemini_api_key", db)
+    if not gemini_key:
+        # 向下相容：若使用者未在前端設定，嘗試從 .env 讀取
+        gemini_key = settings.gemini_api_key
+    if not gemini_key:
+        raise ValueError("尚未設定 Gemini API Key，請在設定頁面填入後再試")
+
     import google.generativeai as genai
-    genai.configure(api_key=settings.gemini_api_key)
+    genai.configure(api_key=gemini_key)
     model = genai.GenerativeModel("gemini-2.0-flash")
 
     response = model.generate_content(prompt)

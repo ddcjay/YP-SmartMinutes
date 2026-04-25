@@ -2,6 +2,31 @@
 
 所有重要的變更都會記錄在此檔案中。
 
+## [0.4.0] - 2026-04-25
+
+### feat: 整合 Groq API 雲端極速轉錄 + 使用者自助 API Key 管理
+
+**Why**: 本地 Faster-Whisper 在無 GPU 環境下轉錄速度較慢（1 小時音檔需 30-40 分鐘），
+整合 Groq API (免費) 可將轉錄時間壓縮至 < 1 分鐘。
+同時將 API Key 管理從 `.env` 改為前端使用者自行輸入+儲存，提升彈性與安全性。
+
+**What**:
+- 重寫 `transcription_service.py`：支援 Groq API / 本地 Whisper 雙引擎切換
+  - Groq API 自動處理 > 25MB 大檔案切割上傳
+  - 預設使用 `whisper-large-v3` 模型
+- 修改 `summary_service.py`：Gemini API Key 改從資料庫讀取（向下相容 .env）
+- 新增 `UserSetting` ORM Model（key-value 格式儲存設定）
+- 新增 Settings API 端點（讀取/批次更新/狀態檢查，API Key 回傳遮罩）
+- 新增前端設定頁面 (`/settings`)
+  - 轉錄引擎選擇（Groq 雲端 / 本地離線）
+  - Groq / Gemini API Key 輸入與密碼遮罩
+  - 服務狀態即時檢查
+  - 附帶官方申請連結（免費、不需信用卡）
+- 首頁新增設定按鈕（齒輪圖示）
+- 更新 `requirements.txt` 加入 `groq` SDK
+- 更新 `router.py` 註冊 settings 路由
+- 10 項整合測試仍全數通過
+
 ## [0.3.0] - 2026-04-25
 
 ### feat: Phase 2 整合測試 + Phase 3 部署準備
