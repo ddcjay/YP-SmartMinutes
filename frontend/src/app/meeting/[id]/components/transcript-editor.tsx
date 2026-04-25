@@ -45,6 +45,7 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
   const [speakerEditId, setSpeakerEditId] = useState<number | null>(null);
   const [speakerName, setSpeakerName] = useState("");
   const [isIdentifying, setIsIdentifying] = useState(false);
+  const [identifyMessage, setIdentifyMessage] = useState("");
 
   const transcripts = meeting.transcripts as TranscriptSegment[] | undefined;
 
@@ -167,36 +168,82 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
     setSpeakerName("");
   }, [meeting, onMeetingUpdate]);
 
-  /** 呼叫 AI 語者辨識 API */
+  /** 呼叫 AI 語者辨識 API（SSE 串流，即時顯示進度） */
   const identifySpeakers = useCallback(async () => {
     if (labeledSegments.length === 0) {
       alert("請先點擊段落左側的「👤」圖示，為至少一段逐字稿標註發言者名稱。");
       return;
     }
     setIsIdentifying(true);
+    setIdentifyMessage("正在送出請求...");
+
     try {
-      const res = await apiFetch<{ data: Array<{ id: number; speaker_label: string }> }>(
-        `/api/meetings/${meetingId}/transcripts/identify-speakers`,
+      const response = await fetch(
+        `${API_BASE_URL}/api/meetings/${meetingId}/transcripts/identify-speakers`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ labeled_segments: labeledSegments }),
         }
       );
-      // 將 AI 結果合併到本地狀態
-      const updateMap = new Map(res.data.map((r) => [r.id, r.speaker_label]));
-      onMeetingUpdate({
-        ...meeting,
-        transcripts: (meeting.transcripts as TranscriptSegment[]).map((t) => ({
-          ...t,
-          speaker_label: updateMap.get(t.id) ?? t.speaker_label,
-        })),
-      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("API 請求失敗");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      // NOTE: 累積所有批次的辨識結果，最終一次性合併
+      const allResults = new Map<number, string>();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+
+            if (event.type === "start") {
+              setIdentifyMessage(event.message);
+            } else if (event.type === "progress") {
+              setIdentifyMessage(event.message);
+              // 每批結果即時合併到地圖中
+              for (const r of event.results || []) {
+                allResults.set(r.id, r.speaker_label);
+              }
+              // 即時更新畫面
+              onMeetingUpdate({
+                ...meeting,
+                transcripts: (meeting.transcripts as TranscriptSegment[]).map((t) => ({
+                  ...t,
+                  speaker_label: allResults.get(t.id) ?? t.speaker_label,
+                })),
+              });
+            } else if (event.type === "done") {
+              setIdentifyMessage(event.message);
+            } else if (event.type === "error") {
+              throw new Error(event.message);
+            }
+          } catch (parseErr: any) {
+            if (parseErr.message && !parseErr.message.includes("JSON")) throw parseErr;
+          }
+        }
+      }
     } catch (e: any) {
       console.error("Speaker identification failed:", e);
       alert(`語者辨識失敗：${e.message || "未知錯誤"}`);
+      setIdentifyMessage("");
     } finally {
       setIsIdentifying(false);
+      // 3 秒後清除訊息
+      setTimeout(() => setIdentifyMessage(""), 3000);
     }
   }, [meetingId, meeting, labeledSegments, onMeetingUpdate]);
 
@@ -232,6 +279,11 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
             {isIdentifying ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
             {isIdentifying ? "辨識中..." : "AI 語者辨識"}
           </button>
+          {identifyMessage && (
+            <span className="text-xs px-3 py-1.5 rounded-lg animate-fade-up" style={{ background: "rgba(99,102,241,0.1)", color: "var(--color-primary-light)" }}>
+              {identifyMessage}
+            </span>
+          )}
         </div>
       </div>
 

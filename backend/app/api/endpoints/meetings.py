@@ -216,15 +216,15 @@ def update_transcript(
     return ApiResponse(message="逐字稿已更新")
 
 
-@router.post("/{meeting_id}/transcripts/identify-speakers", response_model=ApiResponse)
+@router.post("/{meeting_id}/transcripts/identify-speakers")
 def identify_speakers_endpoint(
     meeting_id: str,
     req: dict,
     db: Session = Depends(get_db),
 ):
     """
-    AI 語者辨識：根據使用者標註的範例段落，自動推斷所有段落的發言者。
-    請求格式：{"labeled_segments": [{"id": 1, "speaker_label": "張主任"}, ...]}
+    AI 語者辨識（SSE 串流）：每批處理完即時推送進度與結果。
+    前端透過 response body 的 SSE 格式讀取批次進度。
     """
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
@@ -234,12 +234,20 @@ def identify_speakers_endpoint(
     if not labeled:
         raise HTTPException(400, "請至少標註一段發言者")
 
-    from app.services.speaker_service import identify_speakers
-    try:
-        results = identify_speakers(meeting_id, labeled, db)
-        return ApiResponse(message=f"已辨識 {len(results)} 段發言者", data=results)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+    from app.services.speaker_service import identify_speakers_stream
+
+    def event_generator():
+        try:
+            for event in identify_speakers_stream(meeting_id, labeled, db):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except ValueError as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 @router.post("/{meeting_id}/summary/regenerate", response_model=ApiResponse)
 def regenerate_summary(
