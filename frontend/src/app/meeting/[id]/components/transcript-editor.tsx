@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
-  Subtitles, Pencil, Check, X, Loader2,
+  Subtitles, Pencil, Check, X, Loader2, Users, Sparkles,
 } from "lucide-react";
 import { apiFetch, API_BASE_URL } from "@/lib/api-client";
 
@@ -12,6 +12,7 @@ interface TranscriptSegment {
   start_time: number;
   end_time: number;
   content: string;
+  speaker_label?: string | null;
   is_edited?: boolean;
 }
 
@@ -23,7 +24,7 @@ interface TranscriptEditorProps {
 
 /**
  * 逐字稿編輯頁面元件。
- * 整合音檔播放器、時間戳跳轉、行內編輯功能。
+ * 整合音檔播放器、時間戳跳轉、行內編輯、語者標註功能。
  */
 export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }: TranscriptEditorProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -40,7 +41,22 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
   const [editText, setEditText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  // 語者標註狀態
+  const [speakerEditId, setSpeakerEditId] = useState<number | null>(null);
+  const [speakerName, setSpeakerName] = useState("");
+  const [isIdentifying, setIsIdentifying] = useState(false);
+
   const transcripts = meeting.transcripts as TranscriptSegment[] | undefined;
+
+  // 收集目前已有的發言者清單（用於快速選取）
+  const knownSpeakers = Array.from(
+    new Set((transcripts ?? []).map((t) => t.speaker_label).filter(Boolean) as string[])
+  );
+
+  // 收集使用者已標註的段落（用於送給 AI）
+  const labeledSegments = (transcripts ?? [])
+    .filter((t) => t.speaker_label)
+    .map((t) => ({ id: t.id, speaker_label: t.speaker_label! }));
 
   // 追蹤目前播放段落
   useEffect(() => {
@@ -58,6 +74,7 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
     if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [activeSegmentId]);
 
+  // ===== 播放控制 =====
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -93,13 +110,17 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
     else if (isMuted) { audio.muted = false; setIsMuted(false); }
   }, [isMuted]);
 
-  const cyclePlaybackRate = useCallback(() => {
-    const next = playbackRate >= 2.0 ? 1.0 : Math.round((playbackRate + 0.2) * 10) / 10;
-    setPlaybackRate(next);
-    if (audioRef.current) audioRef.current.playbackRate = next;
-  }, [playbackRate]);
+  const changePlaybackRate = useCallback((rate: number) => {
+    setPlaybackRate(rate);
+    if (audioRef.current) audioRef.current.playbackRate = rate;
+  }, []);
 
+  // ===== 逐字稿編輯 =====
   const startEdit = useCallback((seg: TranscriptSegment) => {
+    // NOTE: 進入編輯模式時自動暫停播放，避免干擾校對
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+    }
     setEditingId(seg.id);
     setEditText(seg.content);
   }, []);
@@ -133,9 +154,54 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
     }
   }, [meetingId, editText, meeting, onMeetingUpdate]);
 
+  // ===== 語者標註 =====
+  const saveSpeaker = useCallback((segId: number, name: string) => {
+    const label = name.trim() || null;
+    onMeetingUpdate({
+      ...meeting,
+      transcripts: (meeting.transcripts as TranscriptSegment[]).map((t) =>
+        t.id === segId ? { ...t, speaker_label: label } : t
+      ),
+    });
+    setSpeakerEditId(null);
+    setSpeakerName("");
+  }, [meeting, onMeetingUpdate]);
+
+  /** 呼叫 AI 語者辨識 API */
+  const identifySpeakers = useCallback(async () => {
+    if (labeledSegments.length === 0) {
+      alert("請先點擊段落左側的「👤」圖示，為至少一段逐字稿標註發言者名稱。");
+      return;
+    }
+    setIsIdentifying(true);
+    try {
+      const res = await apiFetch<{ data: Array<{ id: number; speaker_label: string }> }>(
+        `/api/meetings/${meetingId}/transcripts/identify-speakers`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ labeled_segments: labeledSegments }),
+        }
+      );
+      // 將 AI 結果合併到本地狀態
+      const updateMap = new Map(res.data.map((r) => [r.id, r.speaker_label]));
+      onMeetingUpdate({
+        ...meeting,
+        transcripts: (meeting.transcripts as TranscriptSegment[]).map((t) => ({
+          ...t,
+          speaker_label: updateMap.get(t.id) ?? t.speaker_label,
+        })),
+      });
+    } catch (e: any) {
+      console.error("Speaker identification failed:", e);
+      alert(`語者辨識失敗：${e.message || "未知錯誤"}`);
+    } finally {
+      setIsIdentifying(false);
+    }
+  }, [meetingId, meeting, labeledSegments, onMeetingUpdate]);
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden" style={{ marginBottom: "72px" }}>
-      {/* 隱藏 audio 元素 */}
       <audio
         ref={audioRef}
         src={`${API_BASE_URL}/api/meetings/${meetingId}/audio`}
@@ -148,14 +214,25 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
       />
 
       {/* 標題列 */}
-      <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+      <div className="px-6 py-3 flex items-center justify-between flex-wrap gap-2" style={{ borderBottom: "1px solid var(--color-border)" }}>
         <h2 className="font-semibold flex items-center gap-2">
           <Subtitles size={16} style={{ color: "var(--color-primary-light)" }} />
           完整逐字稿
         </h2>
-        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-          點擊時間跳轉播放 · 雙擊文字編輯
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            點擊時間跳轉 · 雙擊文字編輯 · 點擊 👤 標註發言者
+          </p>
+          <button
+            className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5"
+            onClick={identifySpeakers}
+            disabled={isIdentifying || labeledSegments.length === 0}
+            title={labeledSegments.length === 0 ? "請先標註至少一段發言者" : `已標註 ${labeledSegments.length} 段，點擊開始 AI 辨識`}
+          >
+            {isIdentifying ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {isIdentifying ? "辨識中..." : "AI 語者辨識"}
+          </button>
+        </div>
       </div>
 
       {/* 逐字稿列表 */}
@@ -164,15 +241,48 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
           <div
             key={t.id}
             id={`seg-${t.id}`}
-            className="flex gap-3 py-2 px-3 rounded-lg transition-all group"
+            className="flex gap-2 py-2 px-3 rounded-lg transition-all group"
             style={{
               background: activeSegmentId === t.id ? "rgba(99,102,241,0.12)" : undefined,
               border: activeSegmentId === t.id ? "1px solid rgba(99,102,241,0.25)" : "1px solid transparent",
             }}
           >
+            {/* 語者標註按鈕 */}
+            <div className="shrink-0 pt-0.5" style={{ minWidth: "80px" }}>
+              {speakerEditId === t.id ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    className="text-xs px-1.5 py-1 rounded w-16"
+                    style={{ background: "var(--color-bg-base)", border: "1px solid var(--color-primary)", color: "var(--color-text-primary)", outline: "none" }}
+                    value={speakerName}
+                    onChange={(e) => setSpeakerName(e.target.value)}
+                    placeholder="名稱"
+                    autoFocus
+                    list="known-speakers"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveSpeaker(t.id, speakerName);
+                      if (e.key === "Escape") { setSpeakerEditId(null); setSpeakerName(""); }
+                    }}
+                    onBlur={() => saveSpeaker(t.id, speakerName)}
+                  />
+                </div>
+              ) : (
+                <button
+                  className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded transition hover:bg-[var(--color-bg-hover)]"
+                  style={{ color: t.speaker_label ? "var(--color-warning)" : "var(--color-text-muted)" }}
+                  onClick={() => { setSpeakerEditId(t.id); setSpeakerName(t.speaker_label || ""); }}
+                  title="標註發言者"
+                >
+                  <Users size={11} />
+                  {t.speaker_label || "👤"}
+                </button>
+              )}
+            </div>
+
+            {/* 時間戳 */}
             <button
               className="text-xs font-mono shrink-0 pt-0.5 hover:underline cursor-pointer flex items-center gap-1 transition-colors"
-              style={{ color: activeSegmentId === t.id ? "var(--color-primary)" : "var(--color-primary-light)", minWidth: "70px" }}
+              style={{ color: activeSegmentId === t.id ? "var(--color-primary)" : "var(--color-primary-light)", minWidth: "55px" }}
               onClick={() => seekTo(t.start_time)}
               title={`跳轉至 ${formatTime(t.start_time)} 播放`}
             >
@@ -180,6 +290,7 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
               {formatTime(t.start_time)}
             </button>
 
+            {/* 逐字稿內容 */}
             {editingId === t.id ? (
               <div className="flex-1 flex flex-col gap-2">
                 <textarea
@@ -220,6 +331,11 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
         ))}
       </div>
 
+      {/* 已知發言者 datalist（供輸入框自動完成） */}
+      <datalist id="known-speakers">
+        {knownSpeakers.map((s) => <option key={s} value={s} />)}
+      </datalist>
+
       {/* 底部播放器 */}
       <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-4 px-6 py-3" style={{ background: "var(--color-bg-elevated)", borderTop: "1px solid var(--color-border)", backdropFilter: "blur(12px)" }}>
         <div className="flex items-center gap-2">
@@ -249,9 +365,17 @@ export default function TranscriptEditor({ meetingId, meeting, onMeetingUpdate }
           <input type="range" min={0} max={1} step={0.05} value={isMuted ? 0 : volume} onChange={(e) => changeVolume(parseFloat(e.target.value))} className="audio-slider w-20" title={`音量 ${Math.round((isMuted ? 0 : volume) * 100)}%`} />
         </div>
 
-        <button onClick={cyclePlaybackRate} className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg hover:bg-[var(--color-bg-hover)] transition" style={{ color: playbackRate !== 1.0 ? "var(--color-primary-light)" : "var(--color-text-secondary)", minWidth: "42px" }} title="切換播放速度">
-          {playbackRate.toFixed(1)}x
-        </button>
+        <select
+          value={playbackRate}
+          onChange={(e) => changePlaybackRate(parseFloat(e.target.value))}
+          className="text-xs font-mono font-semibold px-2 py-1 rounded-lg cursor-pointer"
+          style={{ background: "var(--color-bg-hover)", color: playbackRate !== 1.0 ? "var(--color-primary-light)" : "var(--color-text-secondary)", border: "1px solid var(--color-border)", outline: "none" }}
+          title="播放速度"
+        >
+          {[1.0, 1.2, 1.4, 1.6, 1.8, 2.0].map((r) => (
+            <option key={r} value={r}>{r.toFixed(1)}x</option>
+          ))}
+        </select>
       </div>
     </div>
   );
